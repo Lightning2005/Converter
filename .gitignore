@@ -1,15 +1,34 @@
-# Python / Django
+# IDEs and Editors
 .idea/
-__pycache__/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Python / Django
+**/__pycache__/
 *.py[cod]
+*$py.class
 .venv/
+venv/
 backend/db.sqlite3
-media/
+backend/media/
+backend/staticfiles/
 
-# Node / React
-node_modules/
-dist/
-.env
+# Node / React (Frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
 
-# OS
+# OS tools
 .DS_Store
+Thumbs.db
