@@ -1,27 +1,24 @@
 import io
 import zipfile
-from PIL import Image
+from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from pdf2image import convert_from_bytes
-from django.conf import settings  # Импортируем настройки проекта
+from django.conf import settings
 
 
 def convert_images_to_pdf(uploaded_images):
-    """
-    Принимает список файлов изображений из request.FILES.
-    Возвращает байтовый поток (BytesIO) с готовым PDF,
-    где размер каждой страницы точно соответствует размеру изображения.
-    """
     pdf_buffer = io.BytesIO()
-
-    # Создаем canvas без жесткого указания pagesize (зададим динамически ниже)
-    pdf_canvas = canvas.Canvas(pdf_buffer)
+    page_width, page_height = A4
+    pdf_canvas = canvas.Canvas(pdf_buffer, pagesize=A4)
 
     for uploaded_file in uploaded_images:
+        # 1. Открываем и исправляем ориентацию (EXIF)
         img = Image.open(uploaded_file)
+        img = ImageOps.exif_transpose(img)
 
-        # Конвертируем в RGB, если это PNG с прозрачностью
+        # 2. Обработка прозрачности (PDF не любит RGBA)
         if img.mode in ('RGBA', 'LA'):
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
@@ -29,22 +26,28 @@ def convert_images_to_pdf(uploaded_images):
         elif img.mode != 'RGB':
             img = img.convert('RGB')
 
-        # Получаем реальные размеры изображения в пикселях
-        img_width, img_height = img.size
+        # 3. Расчет масштабирования (вписываем картинку в A4 с отступами)
+        margin = 7  # 7 пунктов отступа
+        usable_w = page_width - (2 * margin)
+        usable_h = page_height - (2 * margin)
 
-        # Сохраняем оптимизированное изображение во временный байтовый поток
-        img_buffer = io.BytesIO()
-        img.save(img_buffer, format='JPEG', quality=85)
-        img_buffer.seek(0)
+        img_w, img_h = img.size
+        # Вычисляем соотношение сторон
+        ratio = min(usable_w / img_w, usable_h / img_h)
 
-        img_reader = ImageReader(img_buffer)
+        new_w = img_w * ratio
+        new_h = img_h * ratio
 
-        # Устанавливаем размер текущей страницы PDF под размер картинки
-        pdf_canvas.setPageSize((img_width, img_height))
+        # Центрирование
+        x = (page_width - new_w) / 2
+        y = (page_height - new_h) / 2
 
-        # Рисуем изображение ровно в границы страницы
-        pdf_canvas.drawImage(img_reader, 0, 0, width=img_width, height=img_height)
-        pdf_canvas.showPage()  # Переходим к следующей странице
+        # 4. Вставка изображения
+        img_reader = ImageReader(img)
+        pdf_canvas.drawImage(img_reader, x, y, width=new_w, height=new_h)
+
+        # 5. Обязательно фиксируем страницу
+        pdf_canvas.showPage()
 
     pdf_canvas.save()
     pdf_buffer.seek(0)
